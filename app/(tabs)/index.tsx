@@ -3,6 +3,10 @@ import { useState } from "react";
 import { Text, View } from "@/components/Themed";
 import { useRef } from "react";
 import { TextInput as RNTextInput } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useEffect } from "react";
+import { useColorScheme } from "@/components/useColorScheme";
+import Colors from "@/constants/Colors";
 
 interface TimeEntry {
   id: string;
@@ -61,9 +65,49 @@ function isValidTime(value: string): boolean {
 }
 
 export default function TabOneScreen() {
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? "light"];
   const [entries, setEntries] = useState<TimeEntry[]>([
     { id: "1", from: "", to: "" },
   ]);
+  const [history, setHistory] = useState<TimeEntry[][]>([]); // For history feature
+
+  const ENTRIES_KEY = "MYDRIVETIME_ENTRIES";
+  const HISTORY_KEY = "MYDRIVETIME_HISTORY";
+
+  // Load entries and history from storage on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const saved = await AsyncStorage.getItem(ENTRIES_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setEntries(parsed);
+          }
+        }
+        const savedHistory = await AsyncStorage.getItem(HISTORY_KEY);
+        if (savedHistory) {
+          const parsedHistory = JSON.parse(savedHistory);
+          if (Array.isArray(parsedHistory)) {
+            setHistory(parsedHistory);
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+    })();
+  }, []);
+
+  // Save entries to storage on change
+  useEffect(() => {
+    AsyncStorage.setItem(ENTRIES_KEY, JSON.stringify(entries));
+  }, [entries]);
+
+  // Save history to storage on change
+  useEffect(() => {
+    AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+  }, [history]);
 
   // Refs for auto-focus
   const toInputRefs = useRef<{ [key: string]: RNTextInput | null }>({});
@@ -160,8 +204,22 @@ export default function TabOneScreen() {
             ref={(ref) => {
               fromInputRefs.current[item.id] = ref;
             }}
-            style={[styles.input, item.fromError ? styles.inputError : null]}
+            style={[
+              styles.input,
+              {
+                backgroundColor: colors.inputBackground,
+                borderColor: colors.inputBorder,
+                color: colors.text,
+              },
+              item.fromError
+                ? {
+                    borderColor: colors.errorText,
+                    backgroundColor: colors.errorBackground,
+                  }
+                : null,
+            ]}
             placeholder="From"
+            placeholderTextColor={colors.mutedText}
             value={item.from}
             keyboardType="numeric"
             maxLength={5}
@@ -171,15 +229,29 @@ export default function TabOneScreen() {
           />
         </View>
         <View style={styles.colToText}>
-          <Text style={styles.toText}>to</Text>
+          <Text style={[styles.toText, { color: colors.text }]}>-</Text>
         </View>
         <View style={styles.colTo}>
           <TextInput
             ref={(ref) => {
               toInputRefs.current[item.id] = ref;
             }}
-            style={[styles.input, item.toError ? styles.inputError : null]}
+            style={[
+              styles.input,
+              {
+                backgroundColor: colors.inputBackground,
+                borderColor: colors.inputBorder,
+                color: colors.text,
+              },
+              item.toError
+                ? {
+                    borderColor: colors.errorText,
+                    backgroundColor: colors.errorBackground,
+                  }
+                : null,
+            ]}
             placeholder="To"
+            placeholderTextColor={colors.mutedText}
             value={item.to}
             keyboardType="numeric"
             maxLength={5}
@@ -187,7 +259,7 @@ export default function TabOneScreen() {
           />
         </View>
         <View style={styles.colElapsed}>
-          <Text style={styles.result}>
+          <Text style={[styles.result, { color: colors.text }]}>
             {elapsed
               ? `${elapsed.hours}h ${elapsed.minutes}m / ${elapsed.total}m`
               : "--"}
@@ -196,17 +268,21 @@ export default function TabOneScreen() {
           {(item.fromError || item.toError) && (
             <View style={styles.errorContainer}>
               {item.fromError ? (
-                <Text style={styles.errorText}>{item.fromError}</Text>
+                <Text style={[styles.errorText, { color: colors.errorText }]}>
+                  {item.fromError}
+                </Text>
               ) : null}
               {item.toError ? (
-                <Text style={styles.errorText}>{item.toError}</Text>
+                <Text style={[styles.errorText, { color: colors.errorText }]}>
+                  {item.toError}
+                </Text>
               ) : null}
             </View>
           )}
         </View>
         <View style={styles.colDelete}>
           <Text
-            style={styles.deleteButton}
+            style={[styles.deleteButton, { color: colors.errorText }]}
             onPress={() => handleDeleteRow(item.id)}
             accessibilityLabel="Delete row"
           >
@@ -226,38 +302,65 @@ export default function TabOneScreen() {
   const totalMinutes = totalMins % 60;
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>My Drive Time</Text>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <Text style={[styles.title, { color: colors.text }]}>My Drive Time</Text>
+
       {/* Example Label and Column Headers */}
       <View style={styles.headerRow}>
-        <Text style={styles.exampleLabel}>Example:</Text>
+        <Text style={[styles.exampleLabel, { color: colors.mutedText }]}>
+          Example:
+        </Text>
       </View>
       <View style={styles.labelRow}>
         <View style={styles.colFrom}>
-          <Text style={styles.inputLabel}>From Time</Text>
+          <Text style={[styles.inputLabel, { color: colors.secondaryText }]}>
+            From Time
+          </Text>
         </View>
         <View style={styles.colToText}></View>
         <View style={styles.colTo}>
-          <Text style={styles.inputLabel}>To Time</Text>
+          <Text style={[styles.inputLabel, { color: colors.secondaryText }]}>
+            To Time
+          </Text>
         </View>
         <View style={styles.colElapsed}>
-          <Text style={styles.inputLabel}>Elapsed</Text>
+          <Text style={[styles.inputLabel, { color: colors.secondaryText }]}>
+            Elapsed
+          </Text>
         </View>
         <View style={styles.colDelete}></View>
       </View>
       {/* Example Row */}
       <View style={[styles.row, { opacity: 0.6 }]}>
-        <View style={[styles.colFrom, styles.exampleInput]}>
-          <Text>08:00</Text>
+        <View
+          style={[
+            styles.colFrom,
+            styles.exampleInput,
+            {
+              backgroundColor: colors.exampleBackground,
+              borderColor: colors.exampleBorder,
+            },
+          ]}
+        >
+          <Text style={{ color: colors.text }}>08:00</Text>
         </View>
         <View style={styles.colToText}>
-          <Text style={styles.toText}>to</Text>
+          <Text style={[styles.toText, { color: colors.text }]}>-</Text>
         </View>
-        <View style={[styles.colTo, styles.exampleInput]}>
-          <Text>12:00</Text>
+        <View
+          style={[
+            styles.colTo,
+            styles.exampleInput,
+            {
+              backgroundColor: colors.exampleBackground,
+              borderColor: colors.exampleBorder,
+            },
+          ]}
+        >
+          <Text style={{ color: colors.text }}>12:00</Text>
         </View>
         <View style={styles.colElapsed}>
-          <Text style={styles.result}>
+          <Text style={[styles.result, { color: colors.text }]}>
             {exampleElapsed
               ? `${exampleElapsed.hours}h ${exampleElapsed.minutes}m / ${exampleElapsed.total}m`
               : "--"}
@@ -293,7 +396,7 @@ export default function TabOneScreen() {
         </View>
       </View>
       <View style={styles.totalRow}>
-        <Text style={styles.totalText}>
+        <Text style={[styles.totalText, { color: colors.totalText }]}>
           Total: {totalHours}h {totalMinutes}m / {totalMins}m
         </Text>
       </View>
@@ -308,7 +411,6 @@ const styles = StyleSheet.create({
     justifyContent: "flex-start",
     paddingTop: 40,
     paddingHorizontal: 10,
-    backgroundColor: "#fff",
   },
   title: {
     fontSize: 24,
@@ -325,13 +427,11 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: "#ccc",
     borderRadius: 5,
     padding: 8,
     width: 80, // Revert to original width
     fontSize: 16,
     textAlign: "center",
-    backgroundColor: "#f9f9f9",
   },
   toText: {
     marginHorizontal: 8,
@@ -354,18 +454,12 @@ const styles = StyleSheet.create({
   totalText: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#333",
   },
   exampleInput: {
-    backgroundColor: "#f1f1f1",
-    borderColor: "#e0e0e0",
+    borderWidth: 1,
     justifyContent: "center",
     alignItems: "center",
     padding: 0,
-  },
-  inputError: {
-    borderColor: "red",
-    backgroundColor: "#ffeaea",
   },
   errorContainer: {
     position: "absolute",
@@ -375,7 +469,6 @@ const styles = StyleSheet.create({
     paddingTop: 2,
   },
   errorText: {
-    color: "red",
     fontSize: 12,
     textAlign: "left",
   },
@@ -388,7 +481,6 @@ const styles = StyleSheet.create({
   },
   exampleLabel: {
     fontSize: 14,
-    color: "#888",
     fontStyle: "italic",
     marginBottom: 2,
     marginLeft: 2,
@@ -402,7 +494,6 @@ const styles = StyleSheet.create({
   },
   inputLabel: {
     fontSize: 13,
-    color: "#666",
     minWidth: 80,
     textAlign: "center",
     fontWeight: "500",
@@ -451,7 +542,6 @@ const styles = StyleSheet.create({
   },
   deleteButton: {
     fontSize: 22,
-    color: "#b00",
     paddingHorizontal: 4,
     paddingVertical: 2,
     borderRadius: 16,
